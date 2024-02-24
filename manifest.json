@@ -1,0 +1,16 @@
+{
+  "domain": "home_appliance_scheduler",
+  "name": "Home Appliance Scheduler",
+  "after_dependencies": [
+  ],
+  "codeowners": [
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://example.com",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://example.com",
+  "requirements": [
+  ],
+  "version": "0.0.1"
+}

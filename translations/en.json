@@ -1,0 +1,20 @@
+{
+    "config": {
+        "title": "Home Application Scheduler",
+        "step": {
+            "user": {
+                "title": "Home Application Scheduler",
+                "description": "Setup a Home Application Scheduler",
+                "data": {
+                    "name": "Name of the sensor",
+                    "window_size": "Window size (in minutes)",
+                    "polling_interval": "Polling interval (in seconds)"
+                }
+            }
+        },
+        "error": {
+            "name_exists": "Name already exists",
+            "invalid_template": "The template is invalid"
+        }
+    }
+}
