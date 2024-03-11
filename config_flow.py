@@ -1,4 +1,4 @@
-"""Config flow for home_appliance_scheduler."""
+"""Config flow for scheduler."""
 from homeassistant import config_entries
 from homeassistant.helpers import config_validation as cv
 import voluptuous as vol

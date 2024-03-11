@@ -1,5 +1,5 @@
 {
-  "domain": "home_appliance_scheduler",
+  "domain": "scheduler",
   "name": "Home Appliance Scheduler",
   "after_dependencies": [
   ],

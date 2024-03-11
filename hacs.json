@@ -1,0 +1,7 @@
+{
+    "name": "Scheduler",
+    "domains": ["scheduler"],
+    "documentation": "https://example.com",
+    "issue_tracker": "https://example.com",
+    "content_in_root": false
+  }

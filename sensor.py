@@ -1,4 +1,4 @@
-"""The Sensor platform for home_appliance_scheduler integration."""
+"""The Sensor platform for scheduler integration."""
 from homeassistant.helpers.device_registry import async_get as get_device_registry
 import logging
 from homeassistant.helpers import device_registry as dr
@@ -12,6 +12,7 @@ import yaml
 import numpy as np
 import pytz
 from pydantic import BaseModel
+from typing import List
 
 logger = logging.getLogger(__name__)
 pd.set_option('display.float_format', '{:.3f}'.format)
@@ -28,8 +29,7 @@ async def async_setup_entry(hass, entry, async_add_devices):
     device_id = entry.data.get("name")
     window_size = entry.data.get("window_size")
     polling_interval = entry.data.get("polling_interval")
-    async_add_devices([CoreSensor(device_id, window_size, polling_interval), SchedulerEntity(hass, device_id, "start"), SchedulerEntity(hass, device_id, "end"), SchedulerEntity(hass, device_id, "value")])
-
+    async_add_devices([CoreSensor(device_id, window_size, polling_interval)])
 
 class DeviceEntity(Entity):
     def __init__(self, *args, **kwargs):
@@ -37,7 +37,12 @@ class DeviceEntity(Entity):
 
     @property
     def unique_id(self):
-        return f"{self._device_id}.{self._name}"
+        logger.warn(f"Entity_id: {self._device_id}.{self._name}")
+        return f"{self._device_id}_{self._name}"
+
+    @property
+    def name(self):
+        return f"{self._device_id}_{self._name}"
 
     @property
     def device_info(self):
@@ -45,27 +50,6 @@ class DeviceEntity(Entity):
             'identifiers': {(DOMAIN, self._device_id)},
             'name': f"Scheduler: {self._device_id}",
         }
-
-class SchedulerEntity(DeviceEntity):
-    def __init__(self, hass, device_id, attribute):
-        self._hass = hass
-        self._device_id = device_id
-        self._name = attribute
-        self._value = None
-
-    @property
-    def name(self):
-        return self._name.capitalize()
-
-    @property
-    def state(self):
-        return self._value
-
-    async def async_update(self):
-        # Use the hass object to access the state machine
-        logger.warn(f"{self._device_id},{self._name}")
-        logger.warn(f"sensor.{self._device_id}_forecast")
-        self._value = self.hass.states.get(f"sensor.{self._device_id}_forecast").attributes.get(self._name)
 
 class ScheduleItem(BaseModel):
     start: datetime = None
@@ -78,7 +62,7 @@ class CoreSensor(DeviceEntity):
         self._device_id = device_id
         self._window_size = window_size
         self._polling_interval = polling_interval
-        self._name = "Forecast"
+        self._name = "forecast"
         self._forecast = []
 
     def get_schedule(self):
@@ -93,7 +77,7 @@ class CoreSensor(DeviceEntity):
         pd.Timestamp: The best time to start the washing machine.
         """
         if len(self._forecast) == 0:
-            return ScheduleItem()
+            return [ScheduleItem() for _ in range(5)]
         # Get the current time
         dt = datetime.fromisoformat(self._forecast[0].get("start"))
         now = datetime.now(dt.tzinfo)
@@ -115,21 +99,22 @@ class CoreSensor(DeviceEntity):
         # Calculate the rolling mean of the future forecast data
         rolling_mean = future_forecast_data.rolling(window=self._window_size, min_periods=1).mean()
 
-        # Find the time of the lowest mean power usage
-        window_start = rolling_mean.idxmin()
-        window_end = window_start + timedelta(minutes=self._window_size)
+        # Sort by rolling_mean in ascending order
+        sorted_data = rolling_mean.sort_values()
 
-        # Calculate the mean price for the window
-        value = forecast_data.loc[window_start:window_end].mean()
+        # Find the top 5 times of the lowest mean power usage that are at least one hour apart
+        results = []
+        for time, mean in sorted_data.items():
+            if not results or all(abs((time - r.start).total_seconds()) >= 3600 for r in results):
+                window_end = time + timedelta(minutes=self._window_size)
+                value = future_forecast_data.loc[time:window_end].mean()
+                results.append(ScheduleItem(start=time, end=window_end, value=value))
+                if len(results) == 5:
+                    break
 
-        logger.warn(f"Window start: {window_start}, window end: {window_end}, value: {value}")
-        schedule_item = ScheduleItem(start=window_start, end=window_end, value=value)
-        return schedule_item
+        results = sorted(results, key=lambda x: x.value)
 
-
-    @property
-    def name(self):
-        return f"{self._name}"
+        return results
 
     @property
     def state(self):
@@ -137,14 +122,12 @@ class CoreSensor(DeviceEntity):
 
     @property
     def extra_state_attributes(self):
-        schedule: ScheduleItem = self.get_schedule()
+        schedules: List[ScheduleItem] = self.get_schedule()
+        logger.warn(schedules)
         return {
-            "start": schedule.start,
-            "end": schedule.end,
-            "value": schedule.value
+            "device": self._device_id,
+            "schedules": [s.dict() for s in schedules]
         }
-
-    
     
     async def async_update(self):
         # Use the hass object to access the state machine
@@ -153,17 +136,3 @@ class CoreSensor(DeviceEntity):
         # Define a safe dictionary for eval
         if forecast_entity is not None:
             self._forecast = forecast_entity.attributes.get("raw_total")
-
-class ScheduleEntity(Entity):
-    def __init__(self, device_id, attribute):
-        self._device_id = device_id
-        self._attribute = attribute
-
-    @property
-    def state(self):
-        schedule_item = self.hass.states.get(self._device_id)
-        return schedule_item.attributes.get(self._) if schedule_item else None
-
-
-    async def async_update(self):
-        self._device.async_update()
